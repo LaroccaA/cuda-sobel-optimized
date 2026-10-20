@@ -77,7 +77,7 @@ def main():
         print(f"  Processing completed in {elapsed_time:.4f} seconds.")
 
         combined_output_image = Image.fromarray(combined_output)
-        combined_output_path = os.path.join(output_folder, f"{os.path.splitext(filename)[0]}_sobel_combined.png")
+        combined_output_path = os.path.join(output_folder, f"{os.path.splitext(filename)[0]}_sobel_cpu.png")
         combined_output_image.save(combined_output_path)
 
         print(f"  Combined result saved to {combined_output_path}.")

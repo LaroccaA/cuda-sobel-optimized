@@ -1,0 +1,4 @@
+# Runtime
+numpy>=1.26
+Pillow>=10.2
+pycuda>=2024.1.2

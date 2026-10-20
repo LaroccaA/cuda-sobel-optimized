@@ -6,6 +6,9 @@ import pycuda.autoinit
 from pycuda.compiler import SourceModule
 import time
 
+# KERNEL SYNC: sorgente CUDA duplicato nelle varianti gpu-2D2D*.py.
+# Se cambi coefficienti, clamp, sqrt o gestione dell'halo, aggiorna ogni variante.
+
 # CUDA kernel con l'uso della constant memory per i filtri Sobel
 cuda_code = """
 __constant__ float horizontal_filter[3][3] = { {-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1} };
@@ -108,7 +111,7 @@ def process_single_image(image_path, output_folder):
 
         # Save the output image for this configuration
         image_name = os.path.splitext(os.path.basename(image_path))[0]
-        output_image_name = f"{image_name}_block_{block_size_x}x{block_size_y}_shared.png"
+        output_image_name = f"{image_name}_sobel_cm-sm_{block_size_x}x{block_size_y}.png"
         output_image_path = os.path.join(output_folder, output_image_name)
         output_image = Image.fromarray(output_np)
         output_image.save(output_image_path)

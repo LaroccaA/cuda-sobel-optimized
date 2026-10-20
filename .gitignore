@@ -1,0 +1,24 @@
+# Output generati
+Output/
+
+# Dataset locale
+Dataset*/
+dataset*/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# PyInstaller
+build/
+dist/
+
+# Ambiente
+.env
+.env.*
+!.env.example
+
+# OS/editor
+.DS_Store

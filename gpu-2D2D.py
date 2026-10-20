@@ -6,6 +6,9 @@ import pycuda.autoinit
 from pycuda.compiler import SourceModule
 import time
 
+# KERNEL SYNC: sorgente CUDA duplicato nelle varianti gpu-2D2D*.py.
+# Se cambi coefficienti, clamp, sqrt o gestione dell'halo, aggiorna ogni variante.
+
 # CUDA kernel as a string
 cuda_code = """
 __device__ inline unsigned char clamp(int value) {
@@ -105,7 +108,7 @@ def apply_sobel_filter(input_folder, output_folder):
             cuda.memcpy_dtoh(output_np, d_output)
 
             # Save the output image for this configuration
-            output_image_name = f"{os.path.splitext(image_file)[0]}_block_{block_size_x}x{block_size_y}.png"
+            output_image_name = f"{os.path.splitext(image_file)[0]}_sobel_baseline_{block_size_x}x{block_size_y}.png"
             output_image_path = os.path.join(output_folder, output_image_name)
             output_image = Image.fromarray(output_np)
             output_image.save(output_image_path)
