@@ -41,4 +41,4 @@ GPU outputs use `<stem>_sobel_<variant>_<W>x<H>.png`; the CPU uses `<stem>_sobel
 - PyInstaller specs exist for each GPU script; build with `pyinstaller --clean gpu-2D2D.spec`. `gpu.spec` is legacy/stale and references the deleted `gpu.py`: leave it untouched and do not use it until repointed. The other six specs match their scripts; keep a spec's source path and output name in sync if renaming a script.
 - There is no test or lint command. Verification means `bash -n smoke_test.sh`, running the smoke test, and inspecting the generated images in `Output/`.
 - Keep `README.md` in sync when changing commands, output names, or prerequisites.
-- The "Risultati" table in `README.md` is historical rotation data recovered from `origin/Andrea`, not Sobel benchmark data. Do not mix those numbers with Sobel results.
+- The "Results" table in `README.md` is historical rotation data recovered from `origin/Andrea`, not Sobel benchmark data. Do not mix those numbers with Sobel results.
