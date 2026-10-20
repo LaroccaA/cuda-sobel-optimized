@@ -1,151 +1,154 @@
-# CUDA - Sobel Optimized
+# CUDA Sobel Optimized — Progressive GPU Optimization Study
 
-A comparative study of Sobel edge detection: a pure-Python CPU reference versus six progressively optimized PyCUDA GPU kernels (baseline, shared memory, constant memory, manual loop unrolling, and block-shape exploration).
+A didactic repository demonstrating how to accelerate a 2D convolution (Sobel edge detection) on NVIDIA GPUs using PyCUDA. Seven standalone experiments progress from a pure-Python CPU reference through six GPU variants, each adding one optimization technique.
 
-## Overview
+## Repository Structure
 
-This project applies the Sobel operator to grayscale images and saves the gradient magnitude as PNG. The CPU reference is implemented in pure Python; GPU variants use PyCUDA with the CUDA kernel embedded as a string and compiled at runtime.
-
-**Goal:** Educational/experimental comparison of correctness and timing across optimization strategies—not a production-ready library.
-
-## File Structure
-
-| File | Role |
-|------|------|
-| `cpu_sobel.py` | Pure-Python CPU reference |
-| `gpu-2D2D.py` | Baseline GPU, filters in global memory |
-| `gpu-2D2D-SM.py` | Shared-memory tiling |
-| `gpu-2D2D-CM.py` | Constant-memory filters |
-| `gpu-2D2D-CM-SM.py` | Constant memory + shared memory |
-| `gpu-2D2D-CM-SM-UNR.py` | Shared memory + manually unrolled 3×3 kernel (CM in name only) |
-| `gpu-2D2D-CM-SM-UNR-DimDiverse.py` | Constant + shared + unrolled, block-shape sweep |
-| `*.spec` | PyInstaller build configs for GPU scripts |
-| `Dataset/` | Local input images (not versioned) |
-| `Output/` | Generated outputs (not versioned) |
-| `smoke_test.sh` | Quick single-image sanity check |
-| `requirements.txt` | Python dependencies |
-
-## Prerequisites
-
-- Python 3.10+ (tested on 3.12)
-- NVIDIA GPU with drivers (`nvidia-smi`)
-- CUDA Toolkit with `nvcc` on `PATH` (`nvcc --version`)
-- C++ compiler for PyCUDA build from source
-- Python packages: `numpy`, `Pillow`, `pycuda`
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python3 -m pip install -r requirements.txt
-python3 -c "import pycuda.autoinit; print('PyCUDA OK')"
 ```
+cuda-sobel-optimized/
+├── 01-cpu-reference/          # Pure Python baseline
+│   ├── cpu_sobel.py
+│   └── README.md
+├── 02-gpu-baseline/           # Global memory only
+│   ├── gpu-2D2D.py
+│   ├── gpu-2D2D.spec
+│   └── README.md
+├── 03-gpu-shared-memory/      # Shared memory tiling
+│   ├── gpu-2D2D-SM.py
+│   └── README.md
+├── 04-gpu-constant-memory/    # Constant memory for filters
+│   ├── gpu-2D2D-CM.py
+│   ├── gpu-2D2D-CM.spec
+│   └── README.md
+├── 05-gpu-constant-shared/    # Constant + shared memory
+│   ├── gpu-2D2D-CM-SM.py
+│   ├── gpu-2D2D-CM-SM.spec
+│   └── README.md
+├── 06-gpu-shared-unrolled/    # Shared memory + loop unrolling
+│   ├── gpu-2D2D-CM-SM-UNR.py
+│   ├── gpu-2D2D-CM-SM-UNR.spec
+│   └── README.md
+├── 07-gpu-full-optimization/  # All optimizations + block sweep
+│   ├── gpu-2D2D-CM-SM-UNR-DimDiverse.py
+│   ├── gpu-2D2D-CM-SM-UNR-DimDiverse.spec
+│   └── README.md
+├── Dataset/                   # Input images (git-ignored)
+├── Output/                    # Generated outputs (git-ignored)
+├── requirements.txt
+├── smoke_test.sh
+└── README.md                  # This file
+```
+
+Each subfolder is a **self-contained experiment** with its own script, PyInstaller spec, and README explaining the optimization, what changed from the previous step, and how to run it.
+
+## The Study: Progressive CUDA Optimization
+
+The goal is to understand how each CUDA feature affects performance on a memory-bound 2D stencil:
+
+| Step | Folder | Optimization Added | Research Question |
+|------|--------|-------------------|-------------------|
+| 0 | 01-cpu-reference | — | How slow is pure Python? |
+| 1 | 02-gpu-baseline | Port to CUDA, global memory | What's the raw GPU speedup? |
+| 2 | 03-gpu-shared-memory | Shared memory tile + halo | Does on-chip image reuse help? |
+| 3 | 04-gpu-constant-memory | `__constant__` for filters | Does constant cache help for 3×3 weights? |
+| 4 | 05-gpu-constant-shared | Constant + shared together | Do gains compose? |
+| 5 | 06-gpu-shared-unrolled | Manual 3×3 unrolling | Does ILP matter when memory-bound? |
+| 6 | 07-gpu-full-optimization | All above + block sweep | What's the best block shape? |
+
+### Key concepts illustrated
+
+- **Memory hierarchy**: global → shared → constant → registers
+- **Data reuse**: each input pixel used 9 times → load once to shared memory
+- **Coalescing**: 2D blocks with contiguous x-dimension
+- **Occupancy vs. shared memory**: larger blocks → more shared mem/block → fewer resident blocks
+- **Constant cache**: broadcast to warp, ideal for uniform read-only data
+- **Loop unrolling**: eliminates index arithmetic, enables instruction-level parallelism
+- **Block geometry**: square vs. rectangular vs. 1D — affects coalescing, occupancy, halo overhead
+
+### What this is NOT
+
+- A production image processing library (use OpenCV, cuDNN, or custom kernels with tensor cores)
+- A rigorous benchmark suite (no statistical runs, no multiple GPUs, no NCU logs)
+- A tutorial on PyCUDA best practices (kernels are strings, duplicated across files)
 
 ## Quick Start
 
 ```bash
+# 1. Create virtualenv and install deps
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 -c "import pycuda.autoinit; print('PyCUDA OK')"
+
+# 2. Add at least one test image
 mkdir -p Dataset
-cp /path/to/image.jpg Dataset/
+cp /path/to/photo.jpg Dataset/
 
+# 3. Run any experiment from repo root (scripts expect ../Dataset and ../Output)
+cd 02-gpu-baseline
 python3 gpu-2D2D.py
-ls Output/
+ls ../Output/
 ```
 
-`Dataset/` must exist and contain at least one `.png`, `.jpg`, or `.jpeg`. `Output/` is created automatically. Scripts have no CLI arguments—paths and block sizes are set in each `__main__` block.
+## Prerequisites
 
-The `main` branch does not track `Dataset/`; sample images are on branch `origin/Andrea`. Do not commit local images or generated outputs.
+- Python 3.10+
+- NVIDIA GPU + driver (`nvidia-smi`)
+- CUDA Toolkit with `nvcc` on `PATH` (`nvcc --version`)
+- C++ compiler (for PyCUDA build from source)
+- `numpy`, `Pillow`, `pycuda` (see `requirements.txt`)
 
-## Variants
+## Output Naming Convention
 
-| Script | Optimization | Block size(s) | Example output (`HD.jpg`) |
-|--------|--------------|---------------|---------------------------|
-| `cpu_sobel.py` | Pure Python reference | n/a | `HD_sobel_cpu.png` |
-| `gpu-2D2D.py` | Baseline, filters in global memory | 16×16 | `HD_sobel_baseline_16x16.png` |
-| `gpu-2D2D-SM.py` | Shared memory | 8×8, 16×16, 32×32, 1024×1 | `HD_sobel_sm_16x16.png` |
-| `gpu-2D2D-CM.py` | Constant memory | 16×16 | `HD_sobel_cm_16x16.png` |
-| `gpu-2D2D-CM-SM.py` | Constant + shared memory | 16×16 | `HD_sobel_cm-sm_16x16.png` |
-| `gpu-2D2D-CM-SM-UNR.py` | Shared + manually unrolled 3×3; **no** constant memory despite name | 16×16 | `HD_sobel_sm-unr_16x16.png` |
-| `gpu-2D2D-CM-SM-UNR-DimDiverse.py` | Constant + shared + unrolled | 10 shapes (32×16 … 1024×1) | `HD_sobel_cm-sm-unr_32x16.png` |
+All scripts write to `../Output/` (created automatically):
 
-> **Note:** `gpu-2D2D-CM-SM-UNR.py` retains `CM` in its name for historical reasons but does **not** use constant memory—the Sobel coefficients are hardcoded in the kernel.
+| Experiment | Token | Example (`HD.jpg`) |
+|------------|-------|-------------------|
+| CPU reference | `cpu` | `HD_sobel_cpu.png` |
+| GPU baseline | `baseline` | `HD_sobel_baseline_16x16.png` |
+| Shared memory | `sm` | `HD_sobel_sm_16x16.png` |
+| Constant memory | `cm` | `HD_sobel_cm_16x16.png` |
+| Constant + shared | `cm-sm` | `HD_sobel_cm-sm_16x16.png` |
+| Shared + unrolled | `sm-unr` | `HD_sobel_sm-unr_16x16.png` |
+| Full optimization | `cm-sm-unr` | `HD_sobel_cm-sm-unr_32x16.png` |
 
-## Output Naming
+Format: `<stem>_sobel_<token>[_<W>x<H>].png` (CPU omits block size).
 
-GPU variants:
-```
-<stem>_sobel_<variant>_<W>x<H>.png
-```
+Running the same variant + block size overwrites the file — intentional. For independent runs, use separate output directories.
 
-CPU reference (no block size):
-```
-<stem>_sobel_cpu.png
-```
-
-Variant tokens:
-
-| Variant | Token |
-|---------|-------|
-| `cpu_sobel.py` | `cpu` |
-| `gpu-2D2D.py` | `baseline` |
-| `gpu-2D2D-SM.py` | `sm` |
-| `gpu-2D2D-CM.py` | `cm` |
-| `gpu-2D2D-CM-SM.py` | `cm-sm` |
-| `gpu-2D2D-CM-SM-UNR.py` | `sm-unr` |
-| `gpu-2D2D-CM-SM-UNR-DimDiverse.py` | `cm-sm-unr` |
-
-Running the same variant and block size overwrites the previous file—this is intentional. For independent experiment runs, use separate `Output/` directories.
-
-## Regenerating Outputs
-
-To start fresh, list and then delete only the PNGs in `Output/`:
+## Smoke Test
 
 ```bash
-find Output -maxdepth 1 -type f -name '*.png' -print
-# If the list looks correct:
-find Output -maxdepth 1 -type f -name '*.png' -delete
+./smoke_test.sh
+# Or test a specific variant:
+SCRIPT=../03-gpu-shared-memory/gpu-2D2D-SM.py EXPECT_GLOB="*_sobel_sm_16x16.png" ./smoke_test.sh
 ```
 
-The naming scheme avoids collisions between baseline/CM and SM/CM-SM. The CPU reference is very slow on large images—use downscaled images for CPU vs GPU comparison.
-
-## Results
-
-No versioned Sobel benchmarks exist in this repository. The CSVs recovered from `origin/Andrea` (`report.csv` and `Report/RISULTATI -CPU(Foglio1).csv`) belong to a previous **rotation** experiment (column `Angle`) and are not comparable to Sobel variants.
-
-Historical CPU rotation times (8 angles per image), included only as an archive:
-
-| Image | Resolution | Mean (s) | Min (s) | Max (s) |
-|-------|------------|---------:|--------:|--------:|
-| `640x960.jpg` | 640×960 | 2.27 | 1.78 | 2.83 |
-| `HD.jpg` | 1200×673 | 1.43 | 1.02 | 1.90 |
-| `FullHD.jpg` | 1920×1080 | 7.09 | 2.84 | 9.72 |
-| `4K.jpg` | 4368×2893 | 28.93 | 14.92 | 60.43 |
-| `8K.jpg` | 4480×6720 | 107.63 | 82.85 | 136.37 |
-| `Sopra 8k.jpg` | 6336×9520 | 191.89 | 71.89 | 272.38 |
-
-To obtain Sobel timings, run the scripts and note the printed kernel times. Remember: timers measure **kernel launch + `cuda.Context.synchronize()` only**—they exclude allocation, host↔device copies, and disk I/O.
-
-## Kernel Duplication
-
-The CUDA source is duplicated across all six GPU scripts. There is no shared module; any change to Sobel coefficients, clamping, `sqrtf`, or halo handling must be replicated in every variant.
-
-Each GPU script includes a `KERNEL SYNC` comment as a reminder. Extracting kernels into a future `kernels.py` is possible but requires updating imports, PyInstaller specs, and all variants—outside the minimal setup.
+Copies one image from `Dataset/` to a temp directory, runs the script, verifies a non-zero output PNG appears.
 
 ## PyInstaller Builds
 
-Each GPU script has a matching `.spec`:
+Each GPU experiment has a matching `.spec`:
 
 ```bash
+cd 02-gpu-baseline
 pyinstaller --clean gpu-2D2D.spec
 ```
 
-If you rename a script, update both the path in `Analysis([...])` and the `name` field in the spec. `gpu.spec` is a legacy file pointing to the deleted `gpu.py`—do not use it until updated.
-
-**Important:** The produced executable is **not fully standalone**. PyCUDA compiles kernels at runtime, so the target machine must have NVIDIA drivers and CUDA Toolkit/`nvcc`.
+The executable is **not fully standalone** — PyCUDA compiles kernels at runtime, so the target machine needs NVIDIA driver + CUDA Toolkit.
 
 ## Known Limitations
 
-- CPU reference uses four nested Python loops—very slow on large images.
-- `cpu_sobel.py` crashes on images with height < 10 px due to `height // 10` progress division.
-- Shared-memory kernels leave halo cells outside the image (including block corners) uninitialized; the 1-pixel border may differ from CPU or be non-deterministic. Compare interior pixels, or use baseline/CM variants for direct CPU comparison.
-- Timers measure kernel launch + `cuda.Context.synchronize()` only—no allocation, transfers, or I/O.
-- Performance depends on GPU architecture and CUDA toolkit version; optimal block sizes are not universal.
-- No automated tests, CI, or lint. Verification: `smoke_test.sh` + visual/instrumental output comparison.
+- **CPU reference**: 4 nested loops, crashes on `height < 10` (progress print division)
+- **Shared-memory variants (03, 05, 06, 07)**: halo corners uninitialized → 1-pixel border may differ from CPU. Compare interior pixels only.
+- **Timers**: measure kernel launch + `cuda.Context.synchronize()` only — exclude allocation, H2D/D2H copies, disk I/O
+- **Kernel duplication**: CUDA source is copy-pasted in all 6 GPU scripts (no shared module). `KERNEL SYNC` comments mark this.
+- **No CI, tests, or lint** — verification is `smoke_test.sh` + visual comparison
+
+## Historical Data Note
+
+The `origin/Andrea` branch contains CSV results from a **rotation experiment** (8 angles per image), not Sobel. They are not comparable and are not included here. Run the scripts to generate your own Sobel timings.
+
+## License
+
+MIT — use freely for learning, teaching, or as a starting point for real projects.
